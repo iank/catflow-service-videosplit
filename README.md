@@ -27,6 +27,8 @@ docker build -t iank1/catflow_service_videosplit:latest .
 pytest
 ```
 
+Or `pytest --log-cli-level=DEBUG` for more diagnostics
+
 # Deploy
 
 See [catflow-docker](https://github.com/iank/catflow-docker) for `docker-compose.yml`

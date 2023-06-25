@@ -41,12 +41,14 @@ async def videosplit_handler(
     If the routing key matches detect.*, keep them batched."""
     logging.info(f"[*] Message received ({key}): {msg}")
 
+    assert len(msg) == 1
+    video_s3key = msg[0]
+
     frames_created = []
 
     # Stream S3 object to a temporary file
     async with aiofiles.tempfile.NamedTemporaryFile("wb", delete=False) as f:
-        await s3.download_fileobj(bucket, msg, f)
-        f.close()
+        await s3.download_fileobj(bucket, video_s3key, f)
 
     # Wrap this with try/finally to ensure the temporary file gets deleted
     try:
@@ -86,11 +88,11 @@ async def videosplit_handler(
     pipeline, _ = key.split(".")
     if pipeline == "ingest":
         # We do not have to batch these
-        responses = [("ingest.rawframes", frame_id) for frame_id in frames_created]
+        responses = [("ingest.rawframes", [frame_id]) for frame_id in frames_created]
     elif pipeline == "detect":
         # We need to keep these together for the detector to consider the
         # motion event as a whole
-        responses = [("detect.rawframes", ",".join(frames_created))]
+        responses = [("detect.rawframes", frames_created)]
     else:
         raise ValueError(f"Unexpected pipeline name {pipeline}")
 
