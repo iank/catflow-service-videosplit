@@ -18,6 +18,7 @@ pip install --editable .[dev]
 ```
 pip install build
 python -m build
+docker build -t iank1/catflow_service_videosplit:latest .
 ```
 
 # Test
