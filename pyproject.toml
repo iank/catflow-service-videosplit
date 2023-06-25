@@ -11,6 +11,7 @@ authors = [{ name = "Ian Kilgore", email = "iank@iank.org"}]
 license = {file = "LICENSE"}
 requires-python = ">=3.7"
 dependencies = [
+  "boto3",
   "catflow-worker>=0.1.5",
   "aiofiles",
   "opencv-python-headless",
