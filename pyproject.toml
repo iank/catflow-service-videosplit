@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "catflow-service-videosplit"
 dynamic = ["version"]
 readme = "README.md"
-description = "Consumer/publisher loop for workers in an object recognition pipeline"
+description = "Video splitting service for an object recognition pipeline"
 authors = [{ name = "Ian Kilgore", email = "iank@iank.org"}]
 license = {file = "LICENSE"}
 requires-python = ">=3.7"

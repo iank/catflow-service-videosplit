@@ -1,6 +1,6 @@
 # catflow-service-videosplit
 
-Consumer/publisher loop for workers in an object recognition pipeline
+Video splitting service for an object recognition pipeline
 
 # Setup
 
