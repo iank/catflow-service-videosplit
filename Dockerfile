@@ -6,6 +6,4 @@ COPY . /app
 
 RUN pip install --no-cache-dir .
 
-EXPOSE 5057
-
 CMD ["catflow-service-videosplit"]
