@@ -36,13 +36,13 @@ class AsyncS3Wrapper:
         )
         self.client = session.client("s3", region_name="us-east-1")
 
-    async def download_fileobj(self, bucket, bey, f):
-        buffer = io.BytesIO()
-        self.client.download_fileobj(bucket, bey, buffer)
+    async def download_fileobj(self, bucket, key, f):
+        buf = io.BytesIO()
+        self.client.download_fileobj(bucket, key, buf)
 
         # Ensure we're reading from the start of the file
-        buffer.seek(0)
-        data = buffer.read()
+        buf.seek(0)
+        data = buf.read()
 
         await f.write(data)
 
