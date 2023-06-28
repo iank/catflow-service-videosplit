@@ -2,6 +2,7 @@ from typing import Any, List, Tuple
 import signal
 import asyncio
 from catflow_worker import Worker
+from catflow_worker.types import VideoFileSchema, RawFrameSchema, RawFrame
 from concurrent.futures import ThreadPoolExecutor
 import aiofiles
 import io
@@ -35,22 +36,21 @@ def extract_frames(video_path):
 
 async def videosplit_handler(
     msg: str, key: str, s3: Any, bucket: str
-) -> Tuple[bool, List[Tuple[str, str]]]:
+) -> Tuple[bool, List[Tuple[str, Any]]]:
     """Split the incoming video files into frames
 
     If the routing key matches detect.*, keep them batched."""
-    logging.info(f"[*] Message received ({key}): {msg}")
-
+    # Load message
     assert len(msg) == 1
-    video_s3key = msg[0]
+    video = VideoFileSchema().load(msg[0])
+    logging.info(f"[*] Message received ({key}): {video}")
 
-    frames_created = []
-
-    # Stream S3 object to a temporary file
+    # Download S3 object to a temporary file
     async with aiofiles.tempfile.NamedTemporaryFile("wb", delete=False) as f:
-        await s3.download_fileobj(bucket, video_s3key, f)
+        await s3.download_fileobj(bucket, video.key, f)
 
     # Wrap this with try/finally to ensure the temporary file gets deleted
+    frames_created = []
     try:
         # OpenCV frame generator
         loop = asyncio.get_event_loop()
@@ -64,39 +64,45 @@ async def videosplit_handler(
 
         with ThreadPoolExecutor() as executor:
             while True:
-                frame = await loop.run_in_executor(executor, next_frame, frame_gen)
-                if frame is None:
+                frame_data = await loop.run_in_executor(executor, next_frame, frame_gen)
+                if frame_data is None:
                     break
 
                 logging.debug("Got a frame")
-                byte_file = io.BytesIO(frame)
+                frame_file = io.BytesIO(frame_data)
 
                 # Upload frames to S3
                 frame_filename = str(uuid4()) + ".png"
-                await s3.upload_fileobj(byte_file, bucket, frame_filename)
+                await s3.upload_fileobj(frame_file, bucket, frame_filename)
 
                 # Store object name so we can pass it on
-                logging.debug(f"Created frame {frame_filename}")
-                frames_created.append(frame_filename)
+                frame = RawFrame(key=frame_filename, source=video)
+                logging.info(f"Created frame: {frame}")
+                frames_created.append(frame)
     finally:
         os.remove(f.name)
 
-    # Pass on object names of created frames
+    # Empty response if no frames created
     if len(frames_created) == 0:
         return True, []
 
+    # Dump frames to serializable form
+    frames = RawFrameSchema(many=True).dump(frames_created)
+
+    responses = []
     pipeline, _ = key.split(".")
     if pipeline == "ingest":
-        # We do not have to batch these
-        responses = [("ingest.rawframes", [frame_id]) for frame_id in frames_created]
+        # We do not have to batch these, create many responses
+        for frame in frames:
+            responses.append(("ingest.rawframes", [frame]))
     elif pipeline == "detect":
         # We need to keep these together for the detector to consider the
-        # motion event as a whole
-        responses = [("detect.rawframes", frames_created)]
+        # motion event as a whole. Create one response
+        responses.append(("detect.rawframes", frames))
     else:
         raise ValueError(f"Unexpected pipeline name {pipeline}")
 
-    nFrames = len(frames_created)
+    nFrames = len(frames)
     nMsgs = len(responses)
     logging.info(f"[-] {nFrames} frames -> {pipeline}.rawframes ({nMsgs} msgs)")
     return True, responses
